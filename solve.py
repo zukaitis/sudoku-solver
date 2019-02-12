@@ -1,12 +1,7 @@
 import curses
 import math
 import csv
-
-cell = list(list())
-edge_size = int()
-subcell_edge_size = int()
-min_value = int()
-max_value = int()
+import numpy
 
 class Display:
 
@@ -45,10 +40,8 @@ class Display:
 def is_solved():
     global cell
     is_solved = True
-    for x in cell:
-        for y in x:
-            if (None == y):
-                is_solved = False
+    if (numpy.size(cell[None == cell]) > 0):
+        is_solved = False
     return is_solved
 
 def get_possible_values( position_x, position_y ):
@@ -62,44 +55,89 @@ def get_possible_values( position_x, position_y ):
 
     for value in range( min_value, max_value + 1 ):
         value_found = False
-        for x in range( edge_size ):
-            if (value == cell[x][position_y]):
-                value_found = True
-        for y in range( edge_size ):
-            if (value == cell[position_x][y]):
-                value_found = True
+        
+        row = cell[:, position_y]
+        if (numpy.size(row[row == value]) > 0):
+            value_found = True
+        
+        column = cell[position_x, :]
+        if (numpy.size(column[column == value]) > 0):
+            value_found = True
+
         subcell_start_x = int(position_x / subcell_edge_size) * subcell_edge_size
         subcell_start_y = int(position_y / subcell_edge_size) * subcell_edge_size
-        for x in range(subcell_start_x, subcell_start_x + subcell_edge_size):
-            for y in range(subcell_start_y, subcell_start_y + subcell_edge_size):
-                if (value == cell[x][y]):
-                    value_found = True
+        subcell = cell[subcell_start_x:subcell_start_x+subcell_edge_size, subcell_start_y:subcell_start_y+subcell_edge_size]
+        if (numpy.size(subcell[subcell == value]) > 0):
+            value_found = True
+
         if (not value_found):
-            possible_values.append(value)
+            possible_values.append( value )
 
     return possible_values
 
 def look_for_only_possible_value():
     global cell
-    for x in range( 0, edge_size):
-        for y in range( 0, edge_size):
-            if None == cell[x][y]:
+    for x in range( edge_size ):
+        for y in range( edge_size ):
+            if (None == cell[x][y]):
                 possible_values = get_possible_values( x, y )
-                if 1 == len(possible_values):
-                    cell[x][y] = possible_values[0]
-                    display.display_string( x, y, str(cell[x][y]) )
+                if (1 == len(possible_values)):
+                    write_value_and_display( x, y, possible_values[0] )
 
 def mask_by_value():
     global cell
     for value in range( min_value, max_value + 1 ):
-        mask = [[True] * edge_size] * edge_size
-        for x in range( edge_size ):
-            for y in range( edge_size ):
-                mask[x][y] = True if (None == cell[x][y]) else False
+        mask = numpy.copy( cell )
+        # mask all non-empty cells
+        mask[None == mask] = True
+        mask[True != mask] = False
 
         for x in range( edge_size ):
-            
+            column = cell[x, :]
+            if (numpy.size(column[column == value]) > 0):
+                # mask columns, containing value
+                mask[x, :] = False
 
+        for y in range( edge_size ):
+            row = cell[:, y]
+            if (numpy.size(row[row == value]) > 0):
+                # mask rows, containing value
+                mask[:, y] = False
+
+        for x in range(0, edge_size, subcell_edge_size):
+            for y in range(0, edge_size, subcell_edge_size):
+                subcell = cell[x:x+subcell_edge_size, y:y+subcell_edge_size]
+                if (numpy.size(subcell[subcell == value]) > 0):
+                    # mask subcells, containing value
+                    mask[x:x+subcell_edge_size, y:y+subcell_edge_size] = False
+
+        # search for single unmasked fields in columns, rows, and subcells
+        for x in range( edge_size ):
+            column = mask[x, :]
+            if (1 == numpy.size( column[column == True]) ):
+                write_value_and_display( x, numpy.where(column == True)[0][0], value )
+                return # return after first found value
+
+        for y in range( edge_size ):
+            row = mask[:, y]
+            if (1 == numpy.size( row[row == True]) ):
+                write_value_and_display( numpy.where(row == True)[0][0], y, value )
+                return # return after first found value
+
+        for x in range(0, edge_size, subcell_edge_size):
+            for y in range(0, edge_size, subcell_edge_size):
+                subcell = mask[x:x+subcell_edge_size, y:y+subcell_edge_size]
+                if (1 == numpy.size( subcell[subcell == True]) ):
+                    x_in_subcell, y_in_subcell = numpy.where(subcell == True)
+                    write_value_and_display( x + x_in_subcell[0], y + y_in_subcell[0], value )
+                    return # return after first found value
+
+def write_value_and_display( position_x : int, position_y : int, value : int ):
+    global display
+    global cell
+
+    cell[position_x][position_y] = value
+    display.display_string( position_x, position_y, str(value) )
 
 def main():
     global cell
@@ -111,15 +149,21 @@ def main():
 
     with open('sample.csv', 'rU') as f:
         reader = csv.reader( f )
-        cell = list(reader)
-    cell = list(map(list, zip(*cell))) # transpose
-    cell = [[(int(y) if y else None) for y in x] for x in cell] # convert strings into ints and Nones
+        cell_list = list(reader)
 
-    edge_size = len( cell[0] )
+    cell_list = [[(int(y) if y else None) for y in x] for x in cell_list] # convert strings into ints and Nones
+    cell = numpy.array( cell_list )
+    cell = cell.transpose()
+
+    # value_x, value_y = numpy.where(cell == 1)
+    # print(value_x)
+    # print(value_y)
+
+    edge_size = numpy.size( cell[0] )
     subcell_edge_size = int(math.sqrt(edge_size))
-    cell_length_ch = 1
-    min_value = 1
-    max_value = edge_size
+    min_value = numpy.amin( cell[None != cell] )
+    max_value = numpy.amax( cell[None != cell] )
+    cell_length_ch = 1 if (max_value < 10) else 2
 
     display = Display( edge_size, cell_length_ch )
 
