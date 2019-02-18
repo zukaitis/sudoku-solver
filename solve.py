@@ -83,6 +83,8 @@ class Grid:
             iteration.iternext()
 
     def write_and_display_value( self, position_x : int, position_y : int, value : int ):
+        if (self.value[position_x][position_y] != None):
+            raise Exception('Overwriting an existing value, something is wrong')
         self.value[position_x][position_y] = value
         displayed_value = value + self.value_offset
         self.display.display_string( position_x, position_y, str( displayed_value ) )
@@ -92,6 +94,7 @@ class Grid:
         while (np.size( self.value[None == self.value] ) > 0):
             self.naked_singles()
             self.hidden_singles()
+            self.naked_pairs()
 
     # technique names are taken from this video: https://youtu.be/b123EURtu3I?t=41
     def naked_singles( self ):
@@ -128,11 +131,34 @@ class Grid:
                         self.write_and_display_value( x + subgrid_coordinates[0], y + subgrid_coordinates[1], value )
                         return
 
+    def naked_pairs( self ):
+        for x in range( self.grid_length ):
+            column = self.candidates[x,:,:]
+            for y1 in range( self.grid_length ):
+                for y2 in range( y1 + 1, self.grid_length ):
+                    if (np.array_equal( column[y1,:], column[y2,:] )): # check if candidates are the same
+                        candidate_pair = np.copy( column[y1,:] )
+                        if (2 == np.size( candidate_pair[True == candidate_pair] )): # check if it's a 'pair'
+                            masked_column = np.delete( column, [y1, y2], 0 )
+                            # invert
+                            # AND with masked column
+
+        for y in range( self.grid_length ):
+            row = self.candidates[:,y,:]
+            for x1 in range( self.grid_length ):
+                for x2 in range( x1 + 1, self.grid_length ):
+                    if (np.array_equal( row[x1,:], row[x2,:] )): # check if candidates are the same
+                        candidate_pair = np.copy( row[x1,:] )
+                        if (2 == np.size( candidate_pair[True == candidate_pair] )): # check if it's a 'pair'
+                            masked_row = np.delete( row, [x1, x2], 0 )
+                            # invert
+                            # AND with masked row
+
 def main():
 
     with open('sample.csv', 'rU') as f:
         reader = csv.reader( f )
-        cell_list = list(reader)
+        cell_list = list( reader )
 
     cell_list = [[(int(y) if y else None) for y in x] for x in cell_list] # convert strings into ints and Nones
 
