@@ -122,12 +122,12 @@ class Grid:
                     self.write_and_display_value( x, y, value )
                     return
 
-            sl = self.subgrid_length
             for x in range( 0, self.grid_length, self.subgrid_length ):
-                for y in range(0, self.grid_length, self.subgrid_length ):
+                for y in range( 0, self.grid_length, self.subgrid_length ):
+                    sl = self.subgrid_length
                     subgrid = self.candidates[x:x+sl,y:y+sl,:]
-                    if (1 == np.size( subgrid[subgrid == True]) ):
-                        subgrid_coordinates = np.where(subgrid == True)
+                    if (1 == np.size( subgrid[True == subgrid]) ):
+                        subgrid_coordinates = np.where( True == subgrid )
                         self.write_and_display_value( x + subgrid_coordinates[0], y + subgrid_coordinates[1], value )
                         return
 
@@ -139,9 +139,9 @@ class Grid:
                     if (np.array_equal( column[y1,:], column[y2,:] )): # check if candidates are the same
                         candidate_pair = np.copy( column[y1,:] )
                         if (2 == np.size( candidate_pair[True == candidate_pair] )): # check if it's a 'pair'
-                            masked_column = np.delete( column, [y1, y2], 0 )
-                            # invert
-                            # AND with masked column
+                            # remove pair candidates from all values of column
+                            np.bitwise_and( column, np.invert( candidate_pair ), out=column )
+                            column[y1] = column[y2] = candidate_pair # restore pair candidates
 
         for y in range( self.grid_length ):
             row = self.candidates[:,y,:]
@@ -150,9 +150,23 @@ class Grid:
                     if (np.array_equal( row[x1,:], row[x2,:] )): # check if candidates are the same
                         candidate_pair = np.copy( row[x1,:] )
                         if (2 == np.size( candidate_pair[True == candidate_pair] )): # check if it's a 'pair'
-                            masked_row = np.delete( row, [x1, x2], 0 )
-                            # invert
-                            # AND with masked row
+                            # remove pair candidates from all values of row
+                            np.bitwise_and( row, np.invert( candidate_pair ), out=row )
+                            row[x1] = row[x2] = candidate_pair # restore pair candidates
+
+        for x in range( 0, self.grid_length, self.subgrid_length ):
+            for y in range( 0, self.grid_length, self.subgrid_length ):
+                sl = self.subgrid_length
+                subgrid = self.candidates[x:x+sl,y:y+sl,:]
+                for cell1 in range( self.grid_length ):
+                    for cell2 in range( cell1 + 1, self.grid_length ):
+                        if (np.array_equal( subgrid[int(cell1/sl),int(cell1%sl),:], subgrid[int(cell2/sl),int(cell2%sl),:] )): # check if candidates are the same
+                            candidate_pair = np.copy( subgrid[int(cell1/sl),int(cell1%sl),:] )
+                            if (2 == np.size( candidate_pair[True == candidate_pair] )): # check if it's a 'pair'
+                                # remove pair candidates from all values of subgrid
+                                np.bitwise_and( subgrid, np.invert( candidate_pair ), out=subgrid )
+                                subgrid[int(cell1/sl),int(cell1%sl),:] = subgrid[int(cell2/sl),int(cell2%sl),:] = candidate_pair # restore pair candidates
+
 
 def main():
 
