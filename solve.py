@@ -95,6 +95,7 @@ class Grid:
             self.naked_singles()
             self.hidden_singles()
             self.naked_pairs()
+            self.naked_triples()
 
     # technique names are taken from this video: https://youtu.be/b123EURtu3I?t=41
     def naked_singles( self ):
@@ -125,10 +126,10 @@ class Grid:
             for x in range( 0, self.grid_length, self.subgrid_length ):
                 for y in range( 0, self.grid_length, self.subgrid_length ):
                     sl = self.subgrid_length
-                    subgrid = self.candidates[x:x+sl,y:y+sl,:]
+                    subgrid = self.candidates[x:x+sl,y:y+sl,value]
                     if (1 == np.size( subgrid[True == subgrid]) ):
                         subgrid_coordinates = np.where( True == subgrid )
-                        self.write_and_display_value( x + subgrid_coordinates[0], y + subgrid_coordinates[1], value )
+                        self.write_and_display_value( x + subgrid_coordinates[0][0], y + subgrid_coordinates[1][0], value )
                         return
 
     def naked_pairs( self ):
@@ -167,6 +168,29 @@ class Grid:
                                 np.bitwise_and( subgrid, np.invert( candidate_pair ), out=subgrid )
                                 subgrid[int(cell1/sl),int(cell1%sl),:] = subgrid[int(cell2/sl),int(cell2%sl),:] = candidate_pair # restore pair candidates
 
+    def naked_triples( self ):
+        for x in range( self.grid_length ):
+            column = self.candidates[x,:,:]
+            for y1 in range( self.grid_length ):
+                candidates1 = np.copy( column[y1,:] )
+                if not( 2 <= np.size( candidates1[True == candidates1]) <= 3):
+                    continue
+                for y2 in range( y1 + 1, self.grid_length ):
+                    candidates2 = np.copy( column[y2,:] )
+                    if not( 2 <= np.size( candidates2[True == candidates2]) <= 3):
+                        continue
+                    for y3 in range( y2 + 1, self.grid_length ):
+                        candidates3 = np.copy( column[y3,:] )
+                        if not( 2 <= np.size( candidates3[True == candidates3]) <= 3):
+                            continue
+                        candidates = np.full( self.grid_length, False )
+                        np.bitwise_or( candidates1, candidates2, out=candidates )
+                        np.bitwise_or( candidates3, candidates, out=candidates )
+                        if (3 == np.size( candidates[True == candidates] )):
+                            np.bitwise_and( column, np.invert( candidates ), out=column )
+                            column[y1] = candidates1 # restore candidates
+                            column[y2] = candidates2
+                            column[y3] = candidates3
 
 def main():
 
