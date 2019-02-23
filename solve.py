@@ -105,92 +105,110 @@ class Grid:
                 if (1 == np.size(candidates[True == candidates])):
                     value = np.where( True == candidates )[0][0]
                     self.write_and_display_value( x, y, value )
-                    return
+                    return # for slower visual grid filling
+
+    def find_hidden_singles( self, candidates:np.array ):
+        for value in range( self.grid_length ):
+            candidates_for_value = candidates[:,:,value]
+            if (1 == np.size(candidates_for_value[True == candidates_for_value])):
+                coordinates = np.where( True == candidates_for_value )
+                return coordinates[0][0], coordinates[1][0], value
+        return None, None, None
 
     def hidden_singles( self ):
-        for value in range( self.grid_length ):
-            for x in range( self.grid_length ):
-                column = self.candidates[x,:,value]
-                if (1 == np.size(column[True == column])):
-                    y = np.where( True == column )[0][0]
-                    self.write_and_display_value( x, y, value )
-                    return
-
-            for y in range( self.grid_length ):
-                row = self.candidates[:,y,value]
-                if (1 == np.size(row[True == row])):
-                    x = np.where( True == row )[0][0]
-                    self.write_and_display_value( x, y, value )
-                    return
-
-            for x in range( 0, self.grid_length, self.subgrid_length ):
-                for y in range( 0, self.grid_length, self.subgrid_length ):
-                    sl = self.subgrid_length
-                    subgrid = self.candidates[x:x+sl,y:y+sl,value]
-                    if (1 == np.size( subgrid[True == subgrid]) ):
-                        subgrid_coordinates = np.where( True == subgrid )
-                        self.write_and_display_value( x + subgrid_coordinates[0][0], y + subgrid_coordinates[1][0], value )
-                        return
-
-    def naked_pairs( self ):
         for x in range( self.grid_length ):
-            column = self.candidates[x,:,:]
-            for y1 in range( self.grid_length ):
-                for y2 in range( y1 + 1, self.grid_length ):
-                    if (np.array_equal( column[y1,:], column[y2,:] )): # check if candidates are the same
-                        candidate_pair = np.copy( column[y1,:] )
-                        if (2 == np.size( candidate_pair[True == candidate_pair] )): # check if it's a 'pair'
-                            # remove pair candidates from all values of column
-                            np.bitwise_and( column, np.invert( candidate_pair ), out=column )
-                            column[y1] = column[y2] = candidate_pair # restore pair candidates
+            _, y, value = self.find_hidden_singles( self.candidates[np.newaxis,x,:,:] )
+            if (None != y):
+                self.write_and_display_value( x, y, value )
+                return # for slower visual grid filling
 
         for y in range( self.grid_length ):
-            row = self.candidates[:,y,:]
-            for x1 in range( self.grid_length ):
-                for x2 in range( x1 + 1, self.grid_length ):
-                    if (np.array_equal( row[x1,:], row[x2,:] )): # check if candidates are the same
-                        candidate_pair = np.copy( row[x1,:] )
-                        if (2 == np.size( candidate_pair[True == candidate_pair] )): # check if it's a 'pair'
-                            # remove pair candidates from all values of row
-                            np.bitwise_and( row, np.invert( candidate_pair ), out=row )
-                            row[x1] = row[x2] = candidate_pair # restore pair candidates
+            x, _, value = self.find_hidden_singles( self.candidates[:,np.newaxis,y,:] )
+            if (None != x):
+                self.write_and_display_value( x, y, value )
+                return # for slower visual grid filling
 
         for x in range( 0, self.grid_length, self.subgrid_length ):
             for y in range( 0, self.grid_length, self.subgrid_length ):
                 sl = self.subgrid_length
-                subgrid = self.candidates[x:x+sl,y:y+sl,:]
-                for cell1 in range( self.grid_length ):
-                    for cell2 in range( cell1 + 1, self.grid_length ):
-                        if (np.array_equal( subgrid[int(cell1/sl),int(cell1%sl),:], subgrid[int(cell2/sl),int(cell2%sl),:] )): # check if candidates are the same
-                            candidate_pair = np.copy( subgrid[int(cell1/sl),int(cell1%sl),:] )
-                            if (2 == np.size( candidate_pair[True == candidate_pair] )): # check if it's a 'pair'
-                                # remove pair candidates from all values of subgrid
-                                np.bitwise_and( subgrid, np.invert( candidate_pair ), out=subgrid )
-                                subgrid[int(cell1/sl),int(cell1%sl),:] = subgrid[int(cell2/sl),int(cell2%sl),:] = candidate_pair # restore pair candidates
+                x_in_subgrid, y_in_subgrid, value = self.find_hidden_singles( self.candidates[x:x+sl,y:y+sl,:] )
+                if (None != x_in_subgrid):
+                    self.write_and_display_value( x + x_in_subgrid, y + y_in_subgrid, value )
+                    return # for slower visual grid filling
+
+    def find_naked_pairs( self, candidates:np.array ):
+        cell1_iterator = np.nditer( candidates[:,:,0], flags=['multi_index'])
+        while not (cell1_iterator.finished):
+            cell2_iterator = np.nditer( candidates[:,:,0], flags=['multi_index'])
+            cell2_iterator.multi_index = cell1_iterator.multi_index
+            cell2_iterator.iternext() # start at index one higher, than that of cell1
+            while not (cell2_iterator.finished):
+                if (np.array_equal( candidates[cell1_iterator.multi_index], candidates[cell2_iterator.multi_index] )): # check if candidates are the same
+                    candidate_pair = np.copy( candidates[cell1_iterator.multi_index] )
+                    if (2 == np.size( candidate_pair[True == candidate_pair] )): # check if it's a 'pair'
+                        np.bitwise_and( candidates, np.invert( candidate_pair ), out=candidates )
+                        candidates[cell1_iterator.multi_index] = candidates[cell2_iterator.multi_index] = candidate_pair # restore pair candidates
+                cell2_iterator.iternext()
+            cell1_iterator.iternext()
+
+    def naked_pairs( self ):
+        for x in range( self.grid_length ):
+            self.find_naked_pairs( self.candidates[np.newaxis,x,:,:] )
+
+        for y in range( self.grid_length ):
+            self.find_naked_pairs( self.candidates[:,np.newaxis,y,:] )
+
+        for x in range( 0, self.grid_length, self.subgrid_length ):
+            for y in range( 0, self.grid_length, self.subgrid_length ):
+                sl = self.subgrid_length
+                self.find_naked_pairs( self.candidates[x:x+sl,y:y+sl,:] )
+
+    def find_naked_triples( self, candidates:np.array ):
+        cell1_iterator = np.nditer( candidates[:,:,0], flags=['multi_index'])
+        while not (cell1_iterator.finished):
+            cell1_candidates = np.copy( candidates[cell1_iterator.multi_index] )
+            if not( 2 <= np.size( cell1_candidates[True == cell1_candidates]) <= 3):
+                cell1_iterator.iternext()
+                continue
+            cell2_iterator = np.nditer( candidates[:,:,0], flags=['multi_index'])
+            cell2_iterator.multi_index = cell1_iterator.multi_index
+            cell2_iterator.iternext() # start at index one higher, than that of cell1
+            while not (cell2_iterator.finished):
+                cell2_candidates = np.copy( candidates[cell2_iterator.multi_index] )
+                if not( 2 <= np.size( cell2_candidates[True == cell2_candidates]) <= 3):
+                    cell2_iterator.iternext()
+                    continue
+                cell3_iterator = np.nditer( candidates[:,:,0], flags=['multi_index'])
+                cell3_iterator.multi_index = cell2_iterator.multi_index
+                cell3_iterator.iternext() # start at index one higher, than that of cell2
+                while not (cell3_iterator.finished):
+                    cell3_candidates = np.copy( candidates[cell3_iterator.multi_index] )
+                    if not( 2 <= np.size( cell3_candidates[True == cell3_candidates]) <= 3):
+                        cell3_iterator.iternext()
+                        continue
+                    all_candidates = np.full( self.grid_length, False )
+                    np.bitwise_or( cell1_candidates, cell2_candidates, out=all_candidates )
+                    np.bitwise_or( cell3_candidates, all_candidates, out=all_candidates )
+                    if (3 == np.size( all_candidates[True == all_candidates] )):
+                        np.bitwise_and( candidates, np.invert( all_candidates ), out=candidates )
+                        candidates[cell1_iterator.multi_index] = cell1_candidates # restore candidates
+                        candidates[cell2_iterator.multi_index] = cell2_candidates
+                        candidates[cell3_iterator.multi_index] = cell3_candidates
+                    cell3_iterator.iternext()
+                cell2_iterator.iternext()
+            cell1_iterator.iternext()
 
     def naked_triples( self ):
         for x in range( self.grid_length ):
-            column = self.candidates[x,:,:]
-            for y1 in range( self.grid_length ):
-                candidates1 = np.copy( column[y1,:] )
-                if not( 2 <= np.size( candidates1[True == candidates1]) <= 3):
-                    continue
-                for y2 in range( y1 + 1, self.grid_length ):
-                    candidates2 = np.copy( column[y2,:] )
-                    if not( 2 <= np.size( candidates2[True == candidates2]) <= 3):
-                        continue
-                    for y3 in range( y2 + 1, self.grid_length ):
-                        candidates3 = np.copy( column[y3,:] )
-                        if not( 2 <= np.size( candidates3[True == candidates3]) <= 3):
-                            continue
-                        candidates = np.full( self.grid_length, False )
-                        np.bitwise_or( candidates1, candidates2, out=candidates )
-                        np.bitwise_or( candidates3, candidates, out=candidates )
-                        if (3 == np.size( candidates[True == candidates] )):
-                            np.bitwise_and( column, np.invert( candidates ), out=column )
-                            column[y1] = candidates1 # restore candidates
-                            column[y2] = candidates2
-                            column[y3] = candidates3
+            self.find_naked_triples( self.candidates[np.newaxis,x,:,:] )
+
+        for y in range( self.grid_length ):
+            self.find_naked_triples( self.candidates[:,np.newaxis,y,:] )
+
+        for x in range( 0, self.grid_length, self.subgrid_length ):
+            for y in range( 0, self.grid_length, self.subgrid_length ):
+                sl = self.subgrid_length
+                self.find_naked_triples( self.candidates[x:x+sl,y:y+sl,:] )
 
 def main():
 
