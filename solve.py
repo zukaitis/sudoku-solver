@@ -96,6 +96,7 @@ class Grid:
             self.hidden_singles()
             self.naked_pairs()
             self.naked_triples()
+            self.pointing_pairs_and_triples()
 
     # technique names are taken from this video: https://youtu.be/b123EURtu3I?t=41
     def naked_singles( self ):
@@ -210,9 +211,27 @@ class Grid:
                 sl = self.subgrid_length
                 self.find_naked_triples( self.candidates[x:x+sl,y:y+sl,:] )
 
+    def pointing_pairs_and_triples( self ):
+        for x in range( 0, self.grid_length, self.subgrid_length ):
+            for y in range( 0, self.grid_length, self.subgrid_length ):
+                sl = self.subgrid_length
+                subgrid = self.candidates[x:x+sl,y:y+sl,:]
+                for value in range( self.grid_length ):
+                    candidates_for_value = np.copy( subgrid[:,:,value] )
+                    if ( 2 <= np.size( candidates_for_value[True == candidates_for_value]) <= 3):
+                        coordinates = np.where( True == candidates_for_value )
+                        if (np.all(coordinates[0][0] == coordinates[0])): # check if x coords are the same
+                            self.candidates[x+coordinates[0][0],:,value] = False # remove candidates of value from all column
+                            subgrid[:,:,value] = candidates_for_value # restore candidates in subgrid
+                        if (np.all(coordinates[1][0] == coordinates[1])): # check if y coords are the same
+                            self.candidates[:,y+coordinates[1][0],value] = False # remove candidates of value from all row
+                            subgrid[:,:,value] = candidates_for_value # restore candidates in subgrid
+                            
+
+
 def main():
 
-    with open('sample.csv', 'rU') as f:
+    with open('small_hard.csv', 'rU') as f:
         reader = csv.reader( f )
         cell_list = list( reader )
 
