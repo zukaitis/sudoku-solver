@@ -97,6 +97,7 @@ class Grid:
             self.naked_pairs()
             self.naked_triples()
             self.pointing_pairs_and_triples()
+            self.claiming_pairs_and_triples()
 
     # technique names are taken from this video: https://youtu.be/b123EURtu3I?t=41
     def naked_singles( self ):
@@ -221,13 +222,38 @@ class Grid:
                     if ( 2 <= np.size( candidates_for_value[True == candidates_for_value]) <= 3):
                         coordinates = np.where( True == candidates_for_value )
                         if (np.all(coordinates[0][0] == coordinates[0])): # check if x coords are the same
-                            self.candidates[x+coordinates[0][0],:,value] = False # remove candidates of value from all column
+                            self.candidates[x+coordinates[0][0],:,value] = False # remove candidates of value from whole column
                             subgrid[:,:,value] = candidates_for_value # restore candidates in subgrid
                         if (np.all(coordinates[1][0] == coordinates[1])): # check if y coords are the same
-                            self.candidates[:,y+coordinates[1][0],value] = False # remove candidates of value from all row
+                            self.candidates[:,y+coordinates[1][0],value] = False # remove candidates of value from whole row
                             subgrid[:,:,value] = candidates_for_value # restore candidates in subgrid
                             
+    def claiming_pairs_and_triples( self ):
+        for x in range( self.grid_length ):
+            for value in range( self.grid_length ):
+                candidates_for_value = np.copy( self.candidates[x,:,value] )
+                if ( 2 <= np.size( candidates_for_value[True == candidates_for_value]) <= 3):
+                    coordinates = np.where( True == candidates_for_value )[0]
+                    coordinates = coordinates // self.subgrid_length
+                    if (np.all(coordinates[0] == coordinates)): # check if all candidates are in the same subgrid
+                        sx = x - x % self.subgrid_length # subgrid edge x
+                        sy = coordinates[0] * self.subgrid_length # subgrid edge y
+                        sl = self.subgrid_length
+                        self.candidates[sx:sx+sl,sy:sy+sl,value] = False # remove candidates of value from whole subgrid
+                        self.candidates[x,:,value] = candidates_for_value # restore candidates in column
 
+        for y in range( self.grid_length ):
+            for value in range( self.grid_length ):
+                candidates_for_value = np.copy( self.candidates[:,y,value] )
+                if ( 2 <= np.size( candidates_for_value[True == candidates_for_value]) <= 3):
+                    coordinates = np.where( True == candidates_for_value )[0]
+                    coordinates = coordinates // self.subgrid_length
+                    if (np.all(coordinates[0] == coordinates)): # check if all candidates are in the same subgrid
+                        sx = coordinates[0] * self.subgrid_length  # subgrid edge x
+                        sy = y - y % self.subgrid_length # subgrid edge y
+                        sl = self.subgrid_length
+                        self.candidates[sx:sx+sl,sy:sy+sl,value] = False # remove candidates of value from whole subgrid
+                        self.candidates[:,y,value] = candidates_for_value # restore candidates in column
 
 def main():
 
