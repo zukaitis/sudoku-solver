@@ -1,8 +1,10 @@
+#!/usr/bin/env python
+
 import curses
 import math
 import csv
 import numpy as np
-import numpy.ma as ma
+import time
 
 class Display:
 
@@ -16,7 +18,8 @@ class Display:
         self.grid_height_ch = (self.subgrid_height_ch + 1) * self.subgrid_edge_size - 1
 
         curses.initscr()
-        self.window = curses.newwin( self.grid_height_ch + 1, self.grid_length_ch + 1 )
+        # make window at least 50 characters wide, so it would fit time report
+        self.window = curses.newwin( self.grid_height_ch + 2, max(self.grid_length_ch + 1, 50) )
         self._display_grid()
         self.window.refresh()
 
@@ -32,10 +35,13 @@ class Display:
                 on_intersection = (ord('|') == (self.window.inch( y, x ) & curses.A_CHARTEXT))
                 self.window.addch( y, x, '+' if on_intersection else '-' )
 
-    def display_string( self, position_x, position_y, string ):
+    def display_string( self, position_x, position_y, string, initial=False ):
         position_x = position_x * (self.cell_length_ch + 1)
         position_y = position_y + int(position_y / self.subgrid_count_on_edge)
-        self.window.addstr( position_y, position_x, string )
+        if (initial):
+            self.window.addstr( position_y, position_x, string, curses.A_DIM )
+        else:
+            self.window.addstr( position_y, position_x, string )
         self.window.refresh()
 
 class Grid:
@@ -59,7 +65,7 @@ class Grid:
         for x in range( self.grid_length ):
             for y in range( self.grid_length ):
                 if (None != self.value[x][y]):
-                    self.display.display_string( x, y, str(self.value[x][y] + self.value_offset) )
+                    self.display.display_string( x, y, str(self.value[x][y] + self.value_offset), initial=True )
 
     def refresh_candidates( self ):
         iteration = np.nditer( self.value, flags=['multi_index', 'refs_ok'] )
@@ -91,6 +97,7 @@ class Grid:
         self.refresh_candidates()
 
     def solve( self ):
+        start_time = time.time()
         while (np.size( self.value[None == self.value] ) > 0):
             self.naked_singles()
             self.hidden_singles()
@@ -98,6 +105,8 @@ class Grid:
             self.naked_triples()
             self.pointing_pairs_and_triples()
             self.claiming_pairs_and_triples()
+            self.x_wing()
+        self.display.display_string(0, self.grid_length, str(("Solved in %s seconds" % (time.time() - start_time))))
 
     # technique names are taken from this video: https://youtu.be/b123EURtu3I?t=41
     def naked_singles( self ):
@@ -255,9 +264,33 @@ class Grid:
                         self.candidates[sx:sx+sl,sy:sy+sl,value] = False # remove candidates of value from whole subgrid
                         self.candidates[:,y,value] = candidates_for_value # restore candidates in column
 
+    def x_wing( self ):
+        for value in range( self.grid_length ):
+            for x1 in range( self.grid_length ):
+                sl = self.subgrid_length
+                for x2 in range( (((x1 // sl) + 1) * sl), self.grid_length ): # start at next subrid
+                    if (np.array_equal( self.candidates[x1,:,value], self.candidates[x2,:,value] )): # check if candidates are the same
+                        candidates_for_value = np.copy( self.candidates[x1,:,value] )
+                        if (2 == np.size( candidates_for_value[True == candidates_for_value] )): # check if there are only two candidates per column
+                            for x in range( self.grid_length ):
+                                np.bitwise_and( self.candidates[x,:,value], np.invert( candidates_for_value ), out=self.candidates[x,:,value] )
+                            self.candidates[x1,:,value] = candidates_for_value
+                            self.candidates[x2,:,value] = candidates_for_value
+
+            for y1 in range( self.grid_length ):
+                    sl = self.subgrid_length
+                    for y2 in range( (((y1 // sl) + 1) * sl), self.grid_length ): # start at next subrid
+                        if (np.array_equal( self.candidates[:,y1,value], self.candidates[:,y2,value] )): # check if candidates are the same
+                            candidates_for_value = np.copy( self.candidates[:,y1,value] )
+                            if (2 == np.size( candidates_for_value[True == candidates_for_value] )): # check if there are only two candidates per column
+                                for y in range( self.grid_length ):
+                                    np.bitwise_and( self.candidates[:,y,value], np.invert( candidates_for_value ), out=self.candidates[:,y,value] )
+                                self.candidates[:,y1,value] = candidates_for_value
+                                self.candidates[:,y2,value] = candidates_for_value
+
 def main():
 
-    with open('small_hard.csv', 'rU') as f:
+    with open('hex.csv', 'rU') as f:
         reader = csv.reader( f )
         cell_list = list( reader )
 
